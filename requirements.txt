@@ -1,6 +1,7 @@
 fastapi
 uvicorn
-google-genai
+mangum
+google-generativeai
 supabase
 edge-tts
 pydantic
