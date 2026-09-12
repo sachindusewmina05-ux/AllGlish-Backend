@@ -1,15 +1,15 @@
 {
-  "version": 2,
+  "devCommand": "uvicorn index:app --reload",
   "builds": [
     {
-      "src": "main.py",
+      "src": "index.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "main.py"
+      "dest": "index.py"
     }
   ]
 }
