@@ -1,6 +1,6 @@
+import base64
 import os
 import re
-import uuid
 from typing import Optional, List
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
@@ -43,11 +43,6 @@ genai_client = genai.Client(api_key=GEMINI_API_KEY)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 VALID_CATEGORIES = {"Noun", "Verb", "Adjective", "Adverb", "Idiom", "Phrasal Verb"}
-
-# Folder where generated story audio is saved. Each file gets a unique name
-# so simultaneous requests don't overwrite each other.
-AUDIO_DIR = "generated_audio"
-os.makedirs(AUDIO_DIR, exist_ok=True)
 
 
 # --- 2. DATA MODELS ---
@@ -192,15 +187,21 @@ async def generate_story(req: StoryRequest):
         story_text = story_response.text
 
         # Text-To-Speech conversion using Edge-TTS (Free Natural Voice).
-        # A unique filename per request so concurrent story requests don't
-        # overwrite each other's audio.
-        output_filename = f"{AUDIO_DIR}/story_{uuid.uuid4().hex}.mp3"
+        # Stream the audio straight into memory (no file saved to disk) and
+        # send it back as a base64 string. The frontend can decode this
+        # directly into a playable/downloadable .mp3.
         communicate = edge_tts.Communicate(story_text, "en-US-ChristopherNeural")
-        await communicate.save(output_filename)
+        audio_chunks = bytearray()
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_chunks.extend(chunk["data"])
+
+        audio_base64 = base64.b64encode(bytes(audio_chunks)).decode("utf-8")
 
         return {
             "story_text": story_text,
-            "audio_file": output_filename,
+            "audio_base64": audio_base64,
+            "audio_format": "mp3",
             "audio_status": "Audio generated successfully",
         }
     except Exception as e:
@@ -263,5 +264,3 @@ async def filter_srt(file: UploadFile = File(...)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-    from mangum import Mangum
-handler = Mangum(app)
